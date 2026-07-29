@@ -599,7 +599,11 @@ function parseArgs(argv) {
 
     if (a === '-o') {
       const next = argv[i + 1];
-      if (next === undefined) throw new Error('-o needs a path');
+      // Same rule the long flags use. Without it `-o --activate` writes to a
+      // file literally named "--activate" and drops the flag, silently.
+      if (next === undefined || next.startsWith('--')) {
+        throw new Error('-o needs a path');
+      }
       flags.out = next;
       i++;
       continue;
@@ -677,6 +681,7 @@ const HELP = `appshot — screenshot a specific macOS app window
 
   activate  (--bundle ID | --app NAME) [--hotkey "cmd shift v"] [--timeout MS]
             Launch / focus the app and wait until it has a window. Prints what it did.
+            Works on the app, not one window, so --title has no effect here.
 
   hotkey    "cmd shift v"
             Send a global hotkey. Needs Accessibility permission.
@@ -739,6 +744,9 @@ async function cmdShot(flags) {
 
   let windows;
   let steps;
+  // Kept so a --title that matches nothing can report what the app DOES have,
+  // instead of a bare "no window matched" the caller cannot act on.
+  let beforeTitle = null;
   if (flags.activate || flags.hotkey || flags.focus) {
     const r = await ensureWindows(sel, {
       hotkey: typeof flags.hotkey === 'string' ? flags.hotkey : null,
@@ -762,12 +770,34 @@ async function cmdShot(flags) {
     }
     // ensureWindows answers "any window at all", on purpose — narrowing by
     // title is this step's job, once the app is known to have windows.
-    if (sel.title) windows = matchByTitle(windows, sel.title);
+    if (sel.title) {
+      beforeTitle = windows;
+      windows = matchByTitle(windows, sel.title);
+    }
   } else {
     windows = await windowsFor(sel);
+    if (!windows.length && sel.title) {
+      beforeTitle = await windowsFor({ ...sel, title: undefined });
+    }
   }
 
   if (!windows.length) {
+    // The app has windows, just none with that title — say so and hand over the
+    // list, since the caller can pick from it immediately.
+    if (beforeTitle && beforeTitle.length) {
+      out({
+        ok: false,
+        error: 'title-no-match',
+        selector: sel,
+        available: beforeTitle,
+        message:
+          `No window titled like "${sel.title}", but the app has ${beforeTitle.length} other ` +
+          `window(s) — listed in "available". Capture one with --window <id>, or drop --title ` +
+          'and use `appshot preview` to look at them if the titles are empty.',
+      });
+      process.exitCode = 2;
+      return;
+    }
     out({
       ok: false,
       error: 'no-match',

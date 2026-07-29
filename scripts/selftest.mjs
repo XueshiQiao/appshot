@@ -68,6 +68,28 @@ function auditFlags() {
     pass('flag reads are all in a form this audit understands');
   }
 
+  // The regex above only sees reads spelled `flags.…`. A helper that receives
+  // the flag object under a different parameter name is therefore invisible to
+  // it — and worse, its reads then look like unused declarations, so the audit
+  // fails for the wrong reason while missing the real problem. Rather than try
+  // to follow renames, require that every function handed the flag object calls
+  // its parameter `flags`, which is what makes the regex sufficient.
+  const callees = new Set(
+    [...src.matchAll(/\b([a-zA-Z_$][\w$]*)\s*\(\s*flags\s*[,)]/g)].map((m) => m[1])
+  );
+  const renamed = [...callees]
+    .filter((name) => new RegExp(`function\\s+${name}\\s*\\(`).test(src))
+    .filter((name) => !new RegExp(`function\\s+${name}\\s*\\(\\s*flags\\b`).test(src))
+    .sort();
+
+  renamed.length
+    ? fail(
+        'helpers taking the flag object name the parameter "flags"',
+        `${renamed.join(', ')} receive(s) flags under another name, so reads inside ` +
+          `them are invisible to this audit — rename the parameter to "flags"`
+      )
+    : pass('helpers taking the flag object name the parameter "flags"');
+
   const undeclared = [...used].filter((f) => !declared.has(f)).sort();
   const unused = [...declared].filter((f) => !used.has(f)).sort();
 
@@ -127,6 +149,8 @@ async function smokeErrors() {
   const cases = [
     [['shot'], 'need --bundle'],
     [['shot', '--bundle'], 'needs a value'],
+    // -o must not swallow a flag as its path and silently drop it.
+    [['shot', '--bundle', 'com.apple.finder', '-o', '--activate'], '-o needs a path'],
     [['list', '-onscreen'], 'unknown flag'],
     [['list', '--bogus'], 'unknown flag'],
     [['frobnicate'], 'unknown command'],

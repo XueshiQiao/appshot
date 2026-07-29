@@ -65,6 +65,11 @@ Read the PNG so you can actually see it
 **Always Read the resulting PNG.** Producing a file is not the same as looking at
 it; you cannot describe or verify a UI you have not seen.
 
+If `shot --title` comes back with `error: "title-no-match"`, the app does have
+windows — they are listed in the result's `available` field. Pick one from there
+with `--window <id>`, or run `preview` and look, rather than guessing another
+title.
+
 ## Commands
 
 | Command | What it does |
