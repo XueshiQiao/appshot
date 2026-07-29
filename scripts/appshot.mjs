@@ -645,9 +645,14 @@ async function cmdApps(flags) {
 function pickWindow(windows, pick) {
   if (!pick || pick === true) return null;
   switch (String(pick)) {
+    // The list arrives sorted best-guess-first: ordinary windows before floating
+    // panels, visible before hidden, larger before smaller.
     case 'first':
+      return windows[0];
+    // Deliberately ignores that ranking — "largest" has to mean largest, or the
+    // flag lies whenever a small ordinary window outranks a big panel.
     case 'largest':
-      return windows[0]; // already sorted: real windows first, then by area
+      return windows.reduce((a, b) => (b.width * b.height > a.width * a.height ? b : a));
     case 'frontmost': {
       const onScreen = windows.filter((w) => w.onScreen);
       return onScreen[0] || windows[0];
@@ -696,8 +701,9 @@ async function cmdShot(flags) {
       process.exitCode = 3;
       return;
     }
-    // ensureWindows ignores --title so it can see any window at all; apply it now.
-    if (sel.title) windows = matchByTitle(windows, sel.title);
+    // ensureWindows matched --title too, so `windows` is already narrowed. That
+    // is deliberate: asking for a window that does not exist yet is exactly when
+    // launching or summoning the app is worth doing.
   } else {
     windows = await windowsFor(sel);
   }
