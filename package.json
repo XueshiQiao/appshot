@@ -1,6 +1,6 @@
 {
   "name": "appshot-skill",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Agent skill for macOS: screenshot one specific app window by bundle id, title, or plain-language description — including hidden windows and menu bar apps summoned by a global hotkey.",
   "type": "module",
   "bin": {
@@ -39,5 +39,8 @@
   },
   "bugs": {
     "url": "https://github.com/XueshiQiao/appshot/issues"
+  },
+  "scripts": {
+    "test": "node scripts/selftest.mjs"
   }
 }

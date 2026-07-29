@@ -561,8 +561,10 @@ const BOOLEAN_FLAGS = new Set([
 // case (a display to the left of the primary one has negative coordinates), and
 // guessing from the leading dash used to swallow it and capture the whole screen
 // while still reporting success.
+// Keep in sync with the code below — scripts/selftest.mjs cross-checks these two
+// sets against every flag the source actually reads and fails if one is missing.
 const VALUE_FLAGS = new Set([
-  'bundle', 'app', 'title', 'out', 'pick', 'max', 'width', 'dir',
+  'window', 'bundle', 'app', 'title', 'out', 'pick', 'max', 'width', 'dir',
   'filter', 'display', 'rect', 'timeout', 'hotkey', 'keys',
 ]);
 
