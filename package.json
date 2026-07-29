@@ -1,0 +1,43 @@
+{
+  "name": "appshot-skill",
+  "version": "1.0.0",
+  "description": "Agent skill for macOS: screenshot one specific app window by bundle id, title, or plain-language description — including hidden windows and menu bar apps summoned by a global hotkey.",
+  "type": "module",
+  "bin": {
+    "appshot": "bin/cli.mjs"
+  },
+  "files": [
+    "bin",
+    "scripts",
+    "SKILL.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "darwin"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "agent-skill",
+    "skill",
+    "macos",
+    "screenshot",
+    "screencapture",
+    "window",
+    "automation"
+  ],
+  "author": "Xueshi Qiao (https://xueshi.dev)",
+  "license": "MIT",
+  "homepage": "https://github.com/XueshiQiao/appshot",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XueshiQiao/appshot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/XueshiQiao/appshot/issues"
+  }
+}
