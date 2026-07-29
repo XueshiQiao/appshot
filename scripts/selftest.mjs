@@ -74,21 +74,39 @@ function auditFlags() {
   // fails for the wrong reason while missing the real problem. Rather than try
   // to follow renames, require that every function handed the flag object calls
   // its parameter `flags`, which is what makes the regex sufficient.
-  const callees = new Set(
-    [...src.matchAll(/\b([a-zA-Z_$][\w$]*)\s*\(\s*flags\s*[,)]/g)].map((m) => m[1])
-  );
-  const renamed = [...callees]
-    .filter((name) => new RegExp(`function\\s+${name}\\s*\\(`).test(src))
-    .filter((name) => !new RegExp(`function\\s+${name}\\s*\\(\\s*flags\\b`).test(src))
-    .sort();
+  // Look at every call that receives the flag object in ANY argument position,
+  // whatever the callee looks like. An earlier version only checked the first
+  // argument of plain `function` declarations, which missed both an arrow
+  // function assigned to a const and `helper(other, flags)`.
+  const bareFlags = /\bflags\b(?![.[])/;              // `flags`, not `flags.x`
+  const suspects = new Map();                          // callee -> reason it fails
 
-  renamed.length
+  for (const m of src.matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)\s*\(([^()]*)\)/g)) {
+    const [, name, args] = m;
+    if (name === 'function' || !bareFlags.test(args)) continue;
+
+    const decl = new RegExp(`function\\s+${name}\\s*\\(([^)]*)\\)`).exec(src);
+    if (!decl) {
+      suspects.set(
+        name,
+        `${name}() is not a plain function declaration (arrow, method or imported), ` +
+          `so this audit cannot see what it names the parameter`
+      );
+    } else if (!bareFlags.test(decl[1])) {
+      suspects.set(
+        name,
+        `${name}() receives the flag object but declares its parameters as ` +
+          `(${decl[1].trim()}) — reads inside it are invisible to this audit`
+      );
+    }
+  }
+
+  suspects.size
     ? fail(
-        'helpers taking the flag object name the parameter "flags"',
-        `${renamed.join(', ')} receive(s) flags under another name, so reads inside ` +
-          `them are invisible to this audit — rename the parameter to "flags"`
+        'everything handed the flag object names the parameter "flags"',
+        [...suspects.values()].join('\n') + '\n(rename the parameter to "flags")'
       )
-    : pass('helpers taking the flag object name the parameter "flags"');
+    : pass('everything handed the flag object names the parameter "flags"');
 
   const undeclared = [...used].filter((f) => !declared.has(f)).sort();
   const unused = [...declared].filter((f) => !used.has(f)).sort();
