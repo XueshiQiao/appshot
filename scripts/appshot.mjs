@@ -775,10 +775,12 @@ async function cmdShot(flags) {
       windows = matchByTitle(windows, sel.title);
     }
   } else {
-    windows = await windowsFor(sel);
-    if (!windows.length && sel.title) {
-      beforeTitle = await windowsFor({ ...sel, title: undefined });
-    }
+    // Fetch title-blind and narrow here, rather than asking windowsFor to
+    // filter and then asking a second time for the unfiltered list when nothing
+    // matched — that cost a whole extra osascript round-trip on every miss.
+    const all = await windowsFor({ ...sel, title: undefined });
+    windows = sel.title ? matchByTitle(all, sel.title) : all;
+    if (!windows.length && sel.title) beforeTitle = all;
   }
 
   if (!windows.length) {

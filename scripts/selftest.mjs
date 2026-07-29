@@ -108,6 +108,30 @@ function auditFlags() {
       )
     : pass('everything handed the flag object names the parameter "flags"');
 
+  // The check above recognises the flag object by the literal token `flags` at
+  // the call site, so ANY indirection defeats it: alias it to another name,
+  // spread it, wrap it in an object, and the call becomes invisible again.
+  // A regex cannot follow that — real data flow needs an AST. What it CAN do is
+  // refuse to let the indirection happen quietly, so each known escape route is
+  // a loud failure rather than a silent blind spot.
+  const known = /const\s*\{\s*flags,\s*positional\s*\}\s*=\s*parseArgs\([^)]*\);?/g;
+  const scan = elsewhere.replace(known, '');
+  const indirection = [
+    [/=\s*flags\b(?![.[])/, 'flags aliased to another variable'],
+    [/\.\.\.\s*flags\b/, 'flags spread into something else'],
+    [/\bflags\s*\.\s*bind\b/, 'flags bound to a function'],
+    [/[[{]\s*flags\s*[,\]}]/, 'flags wrapped in an object or array'],
+  ].filter(([re]) => re.test(scan));
+
+  indirection.length
+    ? fail(
+        'the flag object reaches helpers directly, without indirection',
+        `${indirection.map(([, what]) => what).join('; ')} — the audit tracks the ` +
+          `literal token "flags", so this hides reads from it. Pass flags directly, ` +
+          `or replace this audit with an AST-based one.`
+      )
+    : pass('the flag object reaches helpers directly, without indirection');
+
   const undeclared = [...used].filter((f) => !declared.has(f)).sort();
   const unused = [...declared].filter((f) => !used.has(f)).sort();
 

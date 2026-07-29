@@ -52,7 +52,7 @@ node ~/.claude/skills/appshot/scripts/selftest.mjs
 ```bash
 node ~/.claude/skills/appshot/scripts/appshot.mjs version   # what you have
 npx github:XueshiQiao/appshot                               # update to latest
-npx github:XueshiQiao/appshot#v1.0.4                        # pin a release
+npx github:XueshiQiao/appshot#v1.0.5                        # pin a release
 ```
 
 Updating replaces the installed directory, so keep local edits somewhere else.
