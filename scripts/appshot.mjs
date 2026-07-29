@@ -4,7 +4,7 @@
 
 import { execFile, execFileSync, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { existsSync, mkdirSync, statSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -241,7 +241,10 @@ function matchByTitle(windows, query) {
 function defaultOutPath(tag) {
   const dir = join(tmpdir(), 'appshot');
   mkdirSync(dir, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  // Milliseconds included: capturing the same window twice in one second is
+  // ordinary (before/after a change), and second resolution silently overwrote
+  // the first shot.
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 23);
   const safe = String(tag || 'window').replace(/[^\w.-]+/g, '_').slice(0, 60);
   return join(dir, `${safe}-${stamp}.png`);
 }
@@ -437,8 +440,15 @@ async function ensureWindows(sel, opts = {}) {
   const { hotkey = null, timeout = 6000, launch = true, wantVisible = false } = opts;
   const steps = [];
 
+  // Deliberately drops --title. "Does this app already have a window open?" has
+  // to be answered for ANY window: if a title the caller asked for happens not
+  // to exist yet, that is not a reason to fire a toggle hotkey at an app whose
+  // other window is sitting right there — doing so closes it. Callers narrow by
+  // title afterwards, on whatever this returns.
+  const existSel = { ...sel, title: undefined };
+
   const check = async () => {
-    const found = await windowsFor(sel);
+    const found = await windowsFor(existSel);
     return wantVisible ? found.filter((w) => w.onScreen) : found;
   };
 
@@ -546,33 +556,68 @@ const BOOLEAN_FLAGS = new Set([
   'all', 'onscreen', 'activate', 'focus', 'full', 'shadow', 'help', 'version', 'no-launch',
 ]);
 
+// Flags that must be followed by a value. Listing them explicitly is what lets
+// `--rect -100,0,800,600` work: a value starting with a single dash is a real
+// case (a display to the left of the primary one has negative coordinates), and
+// guessing from the leading dash used to swallow it and capture the whole screen
+// while still reporting success.
+const VALUE_FLAGS = new Set([
+  'bundle', 'app', 'title', 'out', 'pick', 'max', 'width', 'dir',
+  'filter', 'display', 'rect', 'timeout', 'hotkey', 'keys',
+]);
+
 function parseArgs(argv) {
   const flags = {};
   const positional = [];
+
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
+
     if (a.startsWith('--')) {
       const eq = a.indexOf('=');
       if (eq !== -1) {
         flags[a.slice(2, eq)] = a.slice(eq + 1);
-      } else {
-        const name = a.slice(2);
-        const next = argv[i + 1];
-        // A leading dash marks the next token as another flag. Values that
-        // genuinely start with "-" have to be written as --name=value.
-        if (!BOOLEAN_FLAGS.has(name) && next !== undefined && !next.startsWith('-')) {
-          flags[name] = next;
-          i++;
-        } else {
-          flags[name] = true;
-        }
+        continue;
       }
-    } else if (a.startsWith('-o')) {
-      if (a === '-o') { flags.out = argv[++i]; } else { flags.out = a.slice(2); }
-    } else {
-      positional.push(a);
+      const name = a.slice(2);
+      if (!BOOLEAN_FLAGS.has(name) && !VALUE_FLAGS.has(name)) {
+        throw new Error(`unknown flag "--${name}"`);
+      }
+      const next = argv[i + 1];
+      // Only a double dash ends a value. Single-dash tokens are taken as the
+      // value, so negative numbers and coordinates survive.
+      if (VALUE_FLAGS.has(name) && next !== undefined && !next.startsWith('--')) {
+        flags[name] = next;
+        i++;
+      } else {
+        flags[name] = true; // validated below: a value flag left true is an error
+      }
+      continue;
+    }
+
+    if (a === '-o') {
+      const next = argv[i + 1];
+      if (next === undefined) throw new Error('-o needs a path');
+      flags.out = next;
+      i++;
+      continue;
+    }
+
+    // Anything else starting with a dash is a typo, not a filename. Catching it
+    // here stops "-onscreen" from being read as "-o" plus the path "nscreen".
+    if (a.startsWith('-') && a !== '-') {
+      throw new Error(`unknown flag "${a}" (did you mean "-${a}"?)`);
+    }
+
+    positional.push(a);
+  }
+
+  for (const [name, value] of Object.entries(flags)) {
+    if (VALUE_FLAGS.has(name) && value === true) {
+      throw new Error(`--${name} needs a value`);
     }
   }
+
   return { flags, positional };
 }
 
@@ -713,9 +758,9 @@ async function cmdShot(flags) {
       process.exitCode = 3;
       return;
     }
-    // ensureWindows matched --title too, so `windows` is already narrowed. That
-    // is deliberate: asking for a window that does not exist yet is exactly when
-    // launching or summoning the app is worth doing.
+    // ensureWindows answers "any window at all", on purpose — narrowing by
+    // title is this step's job, once the app is known to have windows.
+    if (sel.title) windows = matchByTitle(windows, sel.title);
   } else {
     windows = await windowsFor(sel);
   }
@@ -772,6 +817,7 @@ async function cmdPreview(flags) {
       wantVisible: flags.focus === true || flags.onscreen === true,
     });
     windows = r.windows;
+    if (sel.title) windows = matchByTitle(windows, sel.title);
   } else {
     windows = await windowsFor(sel);
   }
@@ -866,8 +912,19 @@ export async function main(argv = process.argv.slice(2)) {
   }
 }
 
-const invokedDirectly =
-  process.argv[1] && import.meta.url === `file://${resolve(process.argv[1])}`;
+// Compare real paths, not path strings. On macOS /tmp is a symlink to
+// /private/tmp, and a home directory can be symlinked too; a string comparison
+// then decides the script was merely imported and silently does nothing at all
+// while still exiting 0 — the worst possible failure for a CLI.
+const invokedDirectly = (() => {
+  if (!process.argv[1]) return false;
+  const self = fileURLToPath(import.meta.url);
+  try {
+    return realpathSync(self) === realpathSync(process.argv[1]);
+  } catch {
+    return resolve(self) === resolve(process.argv[1]);
+  }
+})();
 
 if (invokedDirectly) {
   main().catch((err) => {

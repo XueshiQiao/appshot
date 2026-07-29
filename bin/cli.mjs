@@ -37,7 +37,8 @@ Try it without installing:
   npx github:XueshiQiao/appshot list --app Finder
   npx github:XueshiQiao/appshot shot --bundle com.apple.finder -o /tmp/f.png
 
-Other flags: --force overwrites an existing install, --help prints this.`;
+Reinstalling replaces an existing appshot install. If the destination exists but
+is not an appshot install, it is left alone unless you pass --force.`;
 
 function installTargets(argv) {
   const custom = argv.indexOf('--dir');
@@ -57,6 +58,20 @@ function fail(msg) {
   process.exit(1);
 }
 
+// Only a directory that is recognisably a previous appshot install may be
+// deleted. `--dir` accepts any path, so without this check reinstalling into a
+// folder that happens to be named "appshot" would recursively delete somebody's
+// unrelated work with nothing but a log line.
+function looksLikeAppshotInstall(dest) {
+  const skill = join(dest, 'SKILL.md');
+  if (!existsSync(skill)) return false;
+  try {
+    return /^name:\s*appshot\s*$/m.test(readFileSync(skill, 'utf8'));
+  } catch {
+    return false;
+  }
+}
+
 function install(argv) {
   const force = argv.includes('--force');
   let version = '0.0.0';
@@ -68,8 +83,11 @@ function install(argv) {
     const dest = join(target.dir, SKILL_NAME);
 
     if (existsSync(dest)) {
-      if (!force) {
-        console.log(`• ${dest} already exists — replacing it (use --force to silence this note)`);
+      if (!looksLikeAppshotInstall(dest) && !force) {
+        fail(
+          `${dest} already exists and does not look like an appshot install.\n` +
+            `Refusing to delete it. Move it aside, or pass --force to overwrite it anyway.`
+        );
       }
       rmSync(dest, { recursive: true, force: true });
     }
@@ -90,13 +108,23 @@ macOS needs Screen & System Audio Recording permission for your terminal, and
 Accessibility permission as well if you want the --hotkey feature.`);
 }
 
+// Only these mean "install". Routing on a bare leading "--" used to send a
+// mistyped capture command (appshot --bundle com.foo, subcommand forgotten)
+// into the installer, which then deleted and rewrote the installed skill.
+const INSTALL_FLAGS = new Set([
+  '--force', '--dir', '--claude', '--project', '--codex',
+]);
+
 const argv = process.argv.slice(2);
 const first = argv[0];
 
 if (first === '--help' || first === '-h') {
   console.log(USAGE);
-} else if (first === undefined || first === 'install' || first.startsWith('--')) {
+} else if (first === undefined || first === 'install' || INSTALL_FLAGS.has(first)) {
   install(argv);
+} else if (first.startsWith('-')) {
+  console.error(`appshot: unknown option "${first}"\n\n${USAGE}`);
+  process.exit(1);
 } else {
   const { main } = await import(join(ROOT, 'scripts', 'appshot.mjs'));
   main(argv).catch((err) => {

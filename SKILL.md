@@ -171,8 +171,10 @@ these yourself.
   re-run with `--focus`.
 - **Window ids are not stable.** They change when a window is closed and
   reopened. List, then capture, in the same breath; do not cache an id.
-- **Values that start with `-`** must be written `--title=-foo`, otherwise the
-  parser reads them as the next flag.
+- **Values starting with a single dash are fine** (`--rect -2560,0,400,300` for a
+  display left of the primary one). Only a value starting with `--` needs the
+  `--title=--weird` form. An unknown or mistyped flag is an error, never a
+  silently ignored one.
 - **A freshly summoned window is mid fade-in.** appshot waits for the window's
   alpha to settle before capturing, so the shot is not washed out — but if a
   capture ever looks translucent, wait a moment and take it again.

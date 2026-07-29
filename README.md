@@ -46,10 +46,12 @@ and JavaScript for Automation, all of which ship with macOS.
 ```bash
 node ~/.claude/skills/appshot/scripts/appshot.mjs version   # what you have
 npx github:XueshiQiao/appshot                               # update to latest
-npx github:XueshiQiao/appshot#v1.0.0                        # pin a release
+npx github:XueshiQiao/appshot#v1.0.1                        # pin a release
 ```
 
-Updating overwrites the installed directory, so keep local edits somewhere else.
+Updating replaces the installed directory, so keep local edits somewhere else.
+If the destination exists but is not an appshot install, it is left alone unless
+you pass `--force`.
 
 ---
 
