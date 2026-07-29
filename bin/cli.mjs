@@ -21,7 +21,9 @@ const TARGETS = {
   codex: { label: 'Codex', dir: join(homedir(), '.codex', 'skills') },
 };
 
-const FILES = ['SKILL.md', 'scripts', 'README.md', 'LICENSE'];
+// package.json travels with the skill so the installed copy can report which
+// version it is. Without it there is no way to tell an old install from a new one.
+const FILES = ['SKILL.md', 'scripts', 'README.md', 'LICENSE', 'package.json'];
 
 const USAGE = `appshot — screenshot a specific macOS app window
 

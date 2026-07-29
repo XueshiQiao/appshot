@@ -4,11 +4,23 @@
 
 import { execFile, execFileSync, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const pexecFile = promisify(execFile);
+
+// package.json is the single place the version is written; the installer copies
+// it alongside this script so an installed skill can still answer `version`.
+function readVersion() {
+  const pkg = join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json');
+  try {
+    return JSON.parse(readFileSync(pkg, 'utf8')).version || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
 
 /* ------------------------------------------------------------------ *
  * JXA bridge
@@ -531,7 +543,7 @@ async function ensureWindows(sel, opts = {}) {
 // out.png` would quietly swallow the -o as --activate's value and the file would
 // land somewhere else entirely.
 const BOOLEAN_FLAGS = new Set([
-  'all', 'onscreen', 'activate', 'focus', 'full', 'shadow', 'help', 'no-launch',
+  'all', 'onscreen', 'activate', 'focus', 'full', 'shadow', 'help', 'version', 'no-launch',
 ]);
 
 function parseArgs(argv) {
@@ -829,8 +841,12 @@ export async function main(argv = process.argv.slice(2)) {
   const { flags, positional } = parseArgs(argv);
   const cmd = positional.shift() || (flags.help ? 'help' : 'help');
 
+  if (cmd === 'version' || flags.version) {
+    out({ name: 'appshot', version: readVersion() });
+    return;
+  }
   if (cmd === 'help' || flags.help) {
-    process.stdout.write(HELP + '\n');
+    process.stdout.write(`appshot ${readVersion()}\n\n${HELP}\n`);
     return;
   }
   if (process.platform !== 'darwin') {

@@ -41,6 +41,16 @@ npx github:XueshiQiao/appshot list --app Finder
 Requires macOS and Node 18+. No dependencies — it uses `screencapture`, `sips`
 and JavaScript for Automation, all of which ship with macOS.
 
+### Versions
+
+```bash
+node ~/.claude/skills/appshot/scripts/appshot.mjs version   # what you have
+npx github:XueshiQiao/appshot                               # update to latest
+npx github:XueshiQiao/appshot#v1.0.0                        # pin a release
+```
+
+Updating overwrites the installed directory, so keep local edits somewhere else.
+
 ---
 
 ## What it handles

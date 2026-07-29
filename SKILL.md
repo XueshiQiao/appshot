@@ -76,6 +76,7 @@ it; you cannot describe or verify a UI you have not seen.
 | `activate --bundle ID [--hotkey "cmd shift v"]` | Launch / focus / summon until a window exists. |
 | `hotkey "cmd shift v"` | Send a global hotkey by itself. |
 | `screen [--display N] [--rect x,y,w,h]` | Whole screen or a rectangle. |
+| `version` | Which appshot this is. Quote it when reporting a problem. |
 
 Useful flags: `--max N` shrinks the longest side to N px (default 1600) so the
 image is cheap to read — `--full` keeps native retina size when you need to
