@@ -46,6 +46,28 @@ function auditFlags() {
     [...src.matchAll(/flags\.([a-zA-Z]+)|flags\['([a-z-]+)'\]/g)].map((m) => m[1] || m[2])
   );
 
+  // This audit only understands `flags.name` and `flags['name']`. If the source
+  // ever reads flags another way, the audit would quietly stop covering it and
+  // report success — the same silent-drift failure it exists to prevent. So it
+  // refuses to run instead. Reads only: the assignments inside parseArgs use a
+  // variable subscript legitimately.
+  const parseArgsBody = /function parseArgs[\s\S]*?\n}/.exec(src)?.[0] ?? '';
+  const elsewhere = src.replace(parseArgsBody, '');
+  const opaque = [
+    [/\}\s*=\s*flags\b/, 'destructuring from flags'],
+    [/flags\[(?!')[^\]]+\]/, 'computed flags[...] access'],
+  ].filter(([re]) => re.test(elsewhere));
+
+  if (opaque.length) {
+    fail(
+      'flag reads are all in a form this audit understands',
+      `found ${opaque.map(([, what]) => what).join(' and ')} — extend auditFlags() ` +
+        `in scripts/selftest.mjs before trusting this check again`
+    );
+  } else {
+    pass('flag reads are all in a form this audit understands');
+  }
+
   const undeclared = [...used].filter((f) => !declared.has(f)).sort();
   const unused = [...declared].filter((f) => !used.has(f)).sort();
 
